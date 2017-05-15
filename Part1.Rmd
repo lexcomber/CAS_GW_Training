@@ -1,0 +1,335 @@
+---
+title: "Introduction to OLS regression and summary statistics in R"
+author: "Lex Comber and Paul Harris"
+date: "15 May 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents
+
+# Overview
+
+In this session, you will explore basic regression as a precursor to developing Geographically Weighted Regression (GWR) analyses (Brunsdon et al, 1996; Fotheringham et al, 2002) in the next session. The data are introduced along with some techniques for generating summary statistics and simple visualizations.
+
+In this session you will:
+
+- describe OLS regression;
+- introduce the Liudaogou data;
+- develop some exploratory visualizations of the data using histograms, boxplots, conditional boxplots;
+- apply OLS using the `lm` function in R;
+- refine the OLS models to identify the model with the best *fit*; 
+- generate some spatial data and map the residuals in the model.
+
+The data used in these workshops will be the sub-catchment soils data for the Liudaogou watershed, as described in Wang et al (2009). Along the way, you will be exposed to some of the graphics functions available in the `ggplot2` package in R.
+
+We will take as an initial example the objective of developing a model of Total Phosphorus percentage.  
+
+# Ordinary Least Squares Regression
+
+Ordinary Least Squares (OLS) or linear regression has the basic form of: 
+
+$$Y = \beta_0 + \beta_nX_n$$
+where 
+$Y$ is the value that you are trying to model, fit or predict and $X_n$ are the $n$ variables or *covariates* that you are trying to predict $Y$ from. Note that $Y$ is referred to as the *dependent variable* and $X$ as the independent variables. The intercept term is given by $\beta_0$ and the values of $\beta_n$ describe the coefficient estimates, indicate the degree to which the changes in $X$ are associated with changes in $Y$.   
+
+# The Liudaogou Data
+We can explore the application of `lm` to generate linear models using some example data. You will need to run the code below to download the Liudaogou watershed data from Lex's Github repository. However, as you may have gathered from your earlier introductions to R, much functionality is contained in R packages. To get the data from GitHub you will need to install the `repmis` package only before the **first** that you load it, and then load the package:
+
+```{r eval = F}
+install.packages("repmis", dep = T)
+```
+
+Then once it is loaded to your computer, it can be loaded into R / RStudio using the `library` function:
+
+```{r eval=T, echo=T, cache = T, message=F, warning=F, results="hide"}
+library(repmis)
+source_data("https://github.com/lexcomber/CAS_GW_Training/blob/master/Liudaogou.RData?raw=True")
+```
+Here the `source_data` function reads the `.RData` file from the GitHub repository. You should check what has been loaded:
+
+```{r}
+ls()
+```
+
+And then you should explore the data using some of the commands below:
+```{r eval = F}
+dim(data)
+class(data)
+names(data)
+data[1:5, ]
+head(data)
+summary(data)
+## you can veiw the full dataset
+data
+## or specific elements / columns
+data$TPPC
+data$TPPC[1:100]
+data[1:10,6]
+```
+
+**Reminder:**  our initial objective is to develop a model of Total Phosphorus percentage. This is the `TPPC` variable in `data`. 
+
+# Exploratory data analysis
+
+It possible to explore the data in a number of ways using simple plots, correlations and boxplots. Specifically, we are interested in correlations between numeric, continuous variables and  conditional boxplot for ordinal variables. First examine the data to determine the nature of the different variables using the `names` and `summary` functions: 
+
+```{r}
+names(data)
+summary (data) 
+```
+
+## Numeric, continuous data
+We can examine the correlations using the `cor` function: 
+```{r} 
+round(cor(data[, -c(1:3, 17:19)]), 3)
+```
+
+Notice that the `-c(1:3, 17:19)` was used to omit some data columns because they are not numeric. `round function was used to limit the number of decimla places of the output. The `names(data)` can help decide which variables to consider. And this can be refined to consider just correlations with the TPPC variable 
+```{r}
+cor(data[, -c(1:3, 17:19)])[2,-(1:2)]
+```
+It is evident that the variables for `SOCgkg`,  `ClayPC`, `SiltPC` and `SandPC` `re all positively correlated with `TPPC`. We can examine these in further detail: 
+```{r}
+plot(data[,5:9])
+cor(data[, 5:9])[2,-(1:2)]
+
+```
+The `plot` functions plots all of the variables against each other and is useful for displaying how all variables correlate. Can you work out how the last command of `cor(data[, 5:9])[2,-(1:2)]` is working and critically what it is showing? The `5:9` was used to select just the 5th to 9th data columns. 
+
+In fact, `ClayPC`, `SiltPC` and `SandPC` all sum to 100 which can cause problems. For this reason Clay was removed from further analysis.
+
+We can also generate some nicer plots using the `ggplot` function included as part of the `tidyverse` package. You should install and load this now if you have not already installed this:
+
+```{r, eval = F}
+install.packages("tidyverse", dep = T)
+```
+```{r eval=T, echo=F, cache = F, message=F, warning=F, results="hide"}
+library(tidyverse)
+```
+
+We can use the extensive `ggplot` parameters to plot the data in different ways. The code below plots the data as points, and fits a regression line through the 'TPPC` and `SOCgkg` variables:
+
+```{r}
+ggplot(data,aes(TPPC,SOCgkg))+geom_point() + geom_smooth(method='lm')
+```
+
+**TASK:** can you modify the code above to produce plots for the `TPPC` against `SiltPC` and `SandPC`? 
+
+
+## Boxplots and conditional boxplots;
+Having loaded `tidyverse` we can use some of the functions it contains including the `tibble` data structure:
+
+```{r}
+as_tibble(data)
+```
+What is interesting here is that when `tibble` data structures are called, they automatically display the first 10 rows of data and however many columns will fit. Interestingly they describe the type of each variable in the `tibble` format of the `data.frame`. So we can see that we have a number of non-numeric character and factor variables (`chr` and `fctr`) including `SoilType`, `LandUse` and `Position`. It would be interesting to explore how these variables are related to `TPPC`. Conditional boxplots can help do this.
+
+First lets start with a standard set of boxplots to display the distributions of the **numeric** data we are interested in:
+```{r}
+boxplot(data[,8:9], outline = F)
+```
+
+This shows the distributions of the sand and silt percentages, which are are on the same scale (0-100).
+
+Now before the next stage we need to again load some more packages. These will be used in later sessions as well.
+
+```{r, eval = F}
+install.packages("GISTools", dep = T)
+install.packages("plyr", dep = T)
+```
+```{r eval=T, echo=F, cache = F, message=F, warning=F, results="hide"}
+library(GISTools)
+library(plyr)
+```
+
+
+Next we can use boxplots to examine the distribution of TPPC against the categorical variables such as `SoilType`.
+```{r}
+boxplot(data$TPPC~data[,19], las=1,
+		outline = F, ylab = "", xlab = "",
+		col = brewer.pal(length(unique(data[,19])), "Spectral"))
+```
+
+**TASK:** you should use boxplots to determine whether there are potentially important differences in Phosphorus percentages and distributions on different soils, land uses and positions. You may find is useful to examine the help for boxplots (`?boxplot`).
+
+# Regression with `lm` 
+
+Here we will start with a simple regression, with the objective of constructing a model of Phosphorus percentage, `TPPC` from `SOCgkg`, `ClayPC`, `SiltPC` and  `SandPC` (soil organic carbon in g/kg, percentages of clay, silt and sand): 
+
+```{r}
+m1 <- lm(TPPC ~ SOCgkg + SiltPC + SandPC, data = data)
+```
+
+So in the linear models fitted above, the response is TPPC and the predictors are soil organic carbon, clay, silt and sand, plus an intercept term, which is included by default. But essentially this seeks to construct a model of TPPC from the predictor variables. 
+
+The model can be examined using the `summary` function: 
+```{r}
+summary(m1)
+```
+
+This shows a number of things: 
+- the Residuals indicates the empirical quantiles of the residuals.
+- Estimates for the coefficients i.e. components of $\beta$
+- the standard errors of the estimates
+- the values of the t-statistic
+- the probability that a random variable $T \sim t_{n-p}$ is such that $|T|$ exceeds the absolute value of the t-statistic. 
+These latter probabilities are thus p-values for testing the null hypotheses $\beta_{j=0}$ against the alternatives $\beta_{j\neq 0}$ in the normal linear model.
+
+In this case, we can say something about the coefficient estimates that were found to significant (i.e. have associations with the response variable that are unlikely to have occurred by chance):
+- an increase in 1 of SOC (i.e. an increase of 1 gramme per kilogramme of Carbon) is significantly associated with a 0.015 increase in TPPC;
+- an increase of 1 of ClayPC is significantly associated with a decrease of 0.0037 of TPPC.
+
+The`plot` function can be used to generate a number of useful diagnostic plots (see `plot.lm` for further details). The `par` function is used to set plotting parameters. Here we set up the display so that four plots are produced on the same screen, saving the old parameters in `old_par`, reinstating the old parameters after the plot:
+```{r}
+old_par <- par(mfrow = c(2, 2))
+plot(m1)
+par(old_par)
+```
+What should we expect these plots to look like if the all the assumptions for the normal linear model held? One thing we can do is the following
+
+```{r}
+old_par <- par(mfrow = c(2, 2))
+plot(lm(rnorm(length(data$SOCgkg)) + fitted.values(m1) ~ data$SOCgkg))
+par(old_par)
+```
+The plots have almost exactly the same *distributions* as those from `m1` if the normal linear model is correct. The only slight difference is that the scale on the y-axis of the first plot will be different. 
+
+## Residuals 1
+We can also plot the residuals. The code below specifies that plot will have three class intervals: below -2, between -2 and 2, and above 2. These are useful intervals given the residuals should be Normally distributed, and these values are the approximate two-tailed 5% points of this distribution. Residuals within these points will be shaded grey, large negative residuals will be red, and large positive ones will be blue. describing the relationship between `TPCC` and `SOCgkg`:
+
+```{r}
+s.resids = rstandard(m1)
+cols <- rep("grey", length(s.resids))
+cols[s.resids < -2] <- "red"
+cols[s.resids > 2] <- "blue"
+ggplot(data,aes(TPPC,SOCgkg)) + 
+    geom_point(colour = cols) + 
+    geom_smooth(method='lm')
+```
+
+# Refine the model: finding the best fit
+
+In the example above, a small set of variables was passed to the `lm` function. It is possible to find the model of TPPC that best fits the data using the `stepAIC` function. In this we start with a model of all variables and then seek to identify the variables the best describe the variation in `TPPC`.
+
+First we need to code the full model (i.e. with all covariates):
+```{r eval=T, echo=T, cache = F, message=F, warning=F}
+terms <- names(data)[c(5,6,8:19)]
+regmod <- paste(terms[2], "~")
+for ( i in 2:14 ) {
+	if ( i !=  2) regmod <- paste(regmod, "+", terms[i])
+	if ( i == 2) regmod <- paste(regmod, terms[i])
+}
+```
+
+This creates a character variable called `regmod`. You should examine it:
+```{r eval = F}
+regmod
+```
+
+This can be converted into a formula using the `as.formula` function for input into a regression:
+```{r}
+regmod <- as.formula(regmod)
+```
+
+Finally the `stepAIC` function is used to identify the best fitting model - that is the most parsimonious model. Notice how in the code below the `lm` function is embedded:
+
+```{r eval=T, echo=F, cache = F, message=F, warning=F, results="hide"}
+step.i <- stepAIC(lm(regmod, data), trace = F)
+summary(step.i)
+```
+And the resulting formula can be exported out for subsequent use:
+```{r}
+as.formula(step.i$call)
+new.reg.mod <- as.formula(step.i$call)
+```
+
+The `lm` function be used again to develop a regression model of TPPC
+
+```{r}
+m2 <- lm(new.reg.mod, data = data)
+summary(m2)
+```
+
+# Mapping the data
+
+You will have noticed that the Liudaogou data contains locational attributes, `Latitude` and `Longitude`. We can use these to create a spatial point dataset, similar to a point shapefile. The functionality for this is provided by the `sp` package loaded as part of `GISTools` above.
+
+```{r}
+## define a projection
+proj. <- CRS("+proj=tmerc +lat_0=0 +lon_0=108 +k=1 +x_0=500000 
+             +y_0=0 +ellps=krass +units=m +no_defs ")
+## define coordinates
+coords <- data[,3:2]
+## create a SpatialPointsDataFrame
+data.sp <- SpatialPointsDataFrame(coords, 
+    data = data.frame(data), 
+    proj4string = proj.)
+```
+
+We can map the data, load a boundary dataset and add this to the map: 
+```{r eval=T, echo=T, cache = T, message=F, warning=F, results="hide"}
+## have a quick look!
+plot(data.sp, pch = 1, cex = 0.5)
+library(repmis)
+source_data("https://github.com/lexcomber/CAS_GW_Training/blob/master/boundary.RData?raw=True")
+plot(boundary, add = T)
+```
+
+## Residuals 2
+
+We can of course now plot the residuals from `m2` but this time spatially.
+
+First determine the residuals:
+```{r}
+s.resids = rstandard(m2)
+cols <- rep("grey", length(s.resids))
+cols[s.resids < -2] <- "red"
+cols[s.resids > 2] <- "blue"
+```
+
+Then set up the boundary layer as a background for plotting using `ggplot`:
+```{r}
+boundary@data$id = rownames(boundary@data)
+boundary.points = fortify(boundary, region="id")
+boundary.df = join(boundary.points, boundary@data, by="id")
+```
+
+Then plot using `ggplot`:
+```{r}
+ggplot(boundary.df) + 
+  geom_polygon(aes(x=long, y=lat), colour="black", fill="white") +
+  coord_equal() +
+  theme() +
+  geom_point(data = data, aes(x = Longitude, y = Latitude), colour = cols)
+```
+
+# Saving your work
+
+You can save your work to an `.RData` file in your working directory using the `save.image` function:
+```{r, eval = F}
+save.image(file = "part1.RData")
+```
+
+# Code
+
+All of the analyses and mappings were undertaken in R, the free open source statistical software. The RMarkdown script used to produce this manuscript, including all the code used in the analysis and to produce the mapped figures, can be found at [https://github.com/lexcomber/CAS_GW_Training](https://github.com/lexcomber/CAS_GW_Training)
+
+
+# References
+
+Brunsdon, C.F., Fotheringham, A.S. and Charlton M. (1996). Geographically Weighted Regression - A Method for Exploring Spatial Non-Stationarity, *Geographic Analysis*, 28: 281-298.
+
+Fotheringham, A. S., C. Brunsdon, and M. Charlton. (2002). *Geographically Weighted Regression: The
+Analysis of Spatially Varying Relationships*. Chichester: Wiley
+
+Wang, Y., Zhang, X. and Huang, C., 2009. Spatial variability of soil total nitrogen and soil total phosphorus under different land uses in a small watershed on the Loess Plateau, China. *Geoderma*, 150(1), pp.141-149.
+
+
+
+
+
+
