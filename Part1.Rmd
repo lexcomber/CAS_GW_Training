@@ -13,16 +13,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Overview
 
-In this session, you will explore basic regression as a precursor to developing Geographically Weighted Regression (GWR) analyses (Brunsdon et al, 1996; Fotheringham et al, 2002) in the next session. The data are introduced along with some techniques for generating summary statistics and simple visualizations.
+In this session, you will explore basic regression as a precursor to developing Geographically Weighted Regression (GWR) analyses (Brunsdon et al, 1996; Fotheringham et al, 2002) in the next session. The data are introduced along with some techniques for generating summary statistics and simple visualizations. This session will:
 
-In this session you will:
-
-- describe OLS regression;
-- introduce the Liudaogou data;
-- develop some exploratory visualizations of the data using histograms, boxplots, conditional boxplots;
-- apply OLS using the `lm` function in R;
-- refine the OLS models to identify the model with the best *fit*; 
-- generate some spatial data and map the residuals in the model.
+- Describe OLS regression;
+- Introduce the Liudaogou data;
+- Develop some exploratory visualizations of the data using histograms, boxplots, conditional boxplots;
+- Apply OLS using the `lm` function in R;
+- Refine the OLS models to identify the model with the best *fit*; 
+- Generate some spatial data and map the residuals in the model.
 
 The data used in these workshops will be the sub-catchment soils data for the Liudaogou watershed, as described in Wang et al (2009). Along the way, you will be exposed to some of the graphics functions available in the `ggplot2` package in R.
 
@@ -35,6 +33,17 @@ Ordinary Least Squares (OLS) or linear regression has the basic form of:
 $$Y = \beta_0 + \beta_nX_n$$
 where 
 $Y$ is the value that you are trying to model, fit or predict and $X_n$ are the $n$ variables or *covariates* that you are trying to predict $Y$ from. Note that $Y$ is referred to as the *dependent variable* and $X$ as the independent variables. The intercept term is given by $\beta_0$ and the values of $\beta_n$ describe the coefficient estimates, indicate the degree to which the changes in $X$ are associated with changes in $Y$.   
+
+So consider the hypothetical example of the relationship between height and weight below. These can be plotted and a regression fitted that models the relationship between the 2 variables using the `lm` function:
+```{r}
+height <- c(176, 154, 138, 196, 132, 176, 181, 169, 150, 175)
+weight <- c(82, 49, 53, 112, 47, 69, 77, 71, 62, 78)
+plot(weight, height)
+model1 <- lm(height~weight)
+abline(model1, lty = 2, col = "red")
+summary(model1)
+```
+What the model describes is the relationship between height and weight. In this case each additional 1cm of height above a baseline of 98cm is associated with an additional weight of 0.95kg. We will develop these ideas in more detail in the sections below.
 
 # The Liudaogou Data
 We can explore the application of `lm` to generate linear models using some example data. You will need to run the code below to download the Liudaogou watershed data from Lex's Github repository. However, as you may have gathered from your earlier introductions to R, much functionality is contained in R packages. To get the data from GitHub you will need to install the `repmis` package only before the **first** that you load it, and then load the package:
@@ -59,10 +68,7 @@ And then you should explore the data using some of the commands below:
 ```{r eval = F}
 dim(data)
 class(data)
-names(data)
 data[1:5, ]
-head(data)
-summary(data)
 ## you can veiw the full dataset
 data
 ## or specific elements / columns
@@ -77,8 +83,9 @@ data[1:10,6]
 
 It possible to explore the data in a number of ways using simple plots, correlations and boxplots. Specifically, we are interested in correlations between numeric, continuous variables and  conditional boxplot for ordinal variables. First examine the data to determine the nature of the different variables using the `names` and `summary` functions: 
 
-```{r}
+```{r eval = F}
 names(data)
+head(data)
 summary (data) 
 ```
 
@@ -88,11 +95,11 @@ We can examine the correlations using the `cor` function:
 round(cor(data[, -c(1:3, 17:19)]), 3)
 ```
 
-Notice that the `-c(1:3, 17:19)` was used to omit some data columns because they are not numeric. `round function was used to limit the number of decimla places of the output. The `names(data)` can help decide which variables to consider. And this can be refined to consider just correlations with the TPPC variable 
+Notice that the `-c(1:3, 17:19)` was used to omit some data columns because they are not numeric. The `round` function was used to limit the number of decimal places of the output. The `names(data)` command can help decide which variables to consider. And this can be refined to consider just correlations with the TPPC variable 
 ```{r}
 cor(data[, -c(1:3, 17:19)])[2,-(1:2)]
 ```
-It is evident that the variables for `SOCgkg`,  `ClayPC`, `SiltPC` and `SandPC` `re all positively correlated with `TPPC`. We can examine these in further detail: 
+It is evident that the variables for `SOCgkg`,  `ClayPC`, `SiltPC` and `SandPC` are all positively correlated with `TPPC`. We can examine these in further detail: 
 ```{r}
 plot(data[,5:9])
 cor(data[, 5:9])[2,-(1:2)]
@@ -111,32 +118,7 @@ install.packages("tidyverse", dep = T)
 library(tidyverse)
 ```
 
-We can use the extensive `ggplot` parameters to plot the data in different ways. The code below plots the data as points, and fits a regression line through the 'TPPC` and `SOCgkg` variables:
-
-```{r}
-ggplot(data,aes(TPPC,SOCgkg))+geom_point() + geom_smooth(method='lm')
-```
-
-**TASK:** can you modify the code above to produce plots for the `TPPC` against `SiltPC` and `SandPC`? 
-
-
-## Boxplots and conditional boxplots;
-Having loaded `tidyverse` we can use some of the functions it contains including the `tibble` data structure:
-
-```{r}
-as_tibble(data)
-```
-What is interesting here is that when `tibble` data structures are called, they automatically display the first 10 rows of data and however many columns will fit. Interestingly they describe the type of each variable in the `tibble` format of the `data.frame`. So we can see that we have a number of non-numeric character and factor variables (`chr` and `fctr`) including `SoilType`, `LandUse` and `Position`. It would be interesting to explore how these variables are related to `TPPC`. Conditional boxplots can help do this.
-
-First lets start with a standard set of boxplots to display the distributions of the **numeric** data we are interested in:
-```{r}
-boxplot(data[,8:9], outline = F)
-```
-
-This shows the distributions of the sand and silt percentages, which are are on the same scale (0-100).
-
-Now before the next stage we need to again load some more packages. These will be used in later sessions as well.
-
+We will also need some other packages. These will be used in later sessions as well.
 ```{r, eval = F}
 install.packages("GISTools", dep = T)
 install.packages("plyr", dep = T)
@@ -146,15 +128,67 @@ library(GISTools)
 library(plyr)
 ```
 
+Using `ggplot` involves a bit of a learning curve at first but there is plenty of help and advice on the internet. For example the following sites may be useful:
 
-Next we can use boxplots to examine the distribution of TPPC against the categorical variables such as `SoilType`.
+- [http://ggplot2.tidyverse.org/reference/](http://ggplot2.tidyverse.org/reference/)
+- [http://zevross.com/blog/2014/08/04/beautiful-plotting-in-r-a-ggplot2-cheatsheet-3/](http://zevross.com/blog/2014/08/04/beautiful-plotting-in-r-a-ggplot2-cheatsheet-3/)
+- [https://www.rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf](https://www.rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf)
+- [http://tutorials.iq.harvard.edu/R/Rgraphics/Rgraphics.html](http://tutorials.iq.harvard.edu/R/Rgraphics/Rgraphics.html)
+...We should all strive to be part of the `tidyverse`!: [http://tidyverse.org](http://tidyverse.org)
+
+We can use the extensive `ggplot` parameters to plot the data in different ways. The code below plots the data as points, and fits a regression line through the 'TPPC` and `SOCgkg` variables:
+
 ```{r}
-boxplot(data$TPPC~data[,19], las=1,
-		outline = F, ylab = "", xlab = "",
-		col = brewer.pal(length(unique(data[,19])), "Spectral"))
+ggplot(data,aes(TPPC,SOCgkg))+geom_point() + geom_smooth(method='lm')
 ```
 
-**TASK:** you should use boxplots to determine whether there are potentially important differences in Phosphorus percentages and distributions on different soils, land uses and positions. You may find is useful to examine the help for boxplots (`?boxplot`).
+**TASK:** can you modify the code above to produce plots for the `TPPC` against `SiltPC` and `SandPC`? 
+
+## Boxplots and conditional boxplots;
+Having loaded `tidyverse` we can use some of the functions it contains including the `tibble` data structure:
+
+```{r}
+as_tibble(data)
+```
+What is interesting here is that when `tibble` data structures are called, they automatically display the first 10 rows of data and however many columns will fit. Interestingly they describe the type of each variable in the `tibble` format of the `data.frame`. So we can see that we have a number of non-numeric character and factor variables (`chr` and `fctr`) including `SoilType`, `LandUse` and `Position`. It would be interesting to explore how these variables are related to `TPPC`. Conditional boxplots can help do this.
+
+First lets start with a standard set of boxplots to display the distributions of the **numeric** data we are interested in. A standard function for a boxplot is below, but this is not very beautiful - try the code yourself:
+```{r eval = F}
+boxplot(data[,8:9], outline = F)
+```
+Boxplots can be created using `ggplot` with a small amount of data manipulation:
+```{r}
+# create a data frame
+a = data.frame(type = "Silt", value = data[,8])
+b = data.frame(type = "Sand", value = data[,9])
+df <- rbind(a,b)
+# plot with ggplot and geom_boxplot()
+ggplot(df, aes(type, value)) +
+    geom_boxplot(fill = "lightgrey", colour = "#3366FF", outlier.colour = "#08519C") +
+    geom_jitter(width = 0.15, colour = "#6BAED680")
+# see http://ggplot2.tidyverse.org/reference/geom_boxplot.html
+# note the transparent blue colour was identified from
+# add.alpha(brewer.pal(5, "Blues"), 0.5)
+```
+
+This shows the distributions of the sand and silt percentages, which are are on the same scale (0-100).
+
+Next we can use *Conditional* boxplots to examine the distribution of TPPC against the categorical variables such as `SoilType`.
+```{r}
+## identify the outliers to set Y limits
+ylim1 = boxplot.stats(data$TPPC)$stats[c(1, 5)]
+## then plot
+ggplot(data, aes(SoilType, TPPC, fill = SoilType)) +
+    geom_boxplot(outlier.shape = NA) + 
+    coord_cartesian(ylim = ylim1*1.05) + 
+    theme(legend.position = "none")
+## the conventional box plot code is below
+# boxplot(data$TPPC~data[,19], las=1,
+#		outline = F, ylab = "", xlab = "",
+#		col = brewer.pal(length(unique(data[,19])), "Spectral"))
+```
+
+**TASK:** you should use boxplots to determine whether there are potentially important differences in Phosphorus percentages and distributions on different soils, land uses and positions. You may find is useful to examine the help for boxplots in `ggplot` see [http://ggplot2.tidyverse.org/reference/geom_boxplot.html](http://ggplot2.tidyverse.org/reference/geom_boxplot.html). 
 
 # Regression with `lm` 
 
@@ -167,7 +201,7 @@ m1 <- lm(TPPC ~ SOCgkg + SiltPC + SandPC, data = data)
 So in the linear models fitted above, the response is TPPC and the predictors are soil organic carbon, clay, silt and sand, plus an intercept term, which is included by default. But essentially this seeks to construct a model of TPPC from the predictor variables. 
 
 The model can be examined using the `summary` function: 
-```{r}
+```{r eval = F}
 summary(m1)
 ```
 
@@ -189,7 +223,7 @@ old_par <- par(mfrow = c(2, 2))
 plot(m1)
 par(old_par)
 ```
-What should we expect these plots to look like if the all the assumptions for the normal linear model held? One thing we can do is the following
+What should we expect these plots to look like if the all the assumptions for the normal linear model held? One thing we can do is the following to examine the assumptions for covariates:  generates a random distribution as a slight error term, combines this with the fitted values from the regression model and compares these against the actual input data values of the covariate.
 
 ```{r}
 old_par <- par(mfrow = c(2, 2))
@@ -316,7 +350,7 @@ save.image(file = "part1.RData")
 
 # Code
 
-All of the analyses and mappings were undertaken in R, the free open source statistical software. The RMarkdown script used to produce this manuscript, including all the code used in the analysis and to produce the mapped figures, can be found at [https://github.com/lexcomber/CAS_GW_Training](https://github.com/lexcomber/CAS_GW_Training)
+The practical, all of the analyses and mappings were undertaken in R, the free open source statistical software. The RMarkdown script used to produce this practical that includes all the code used in the analysis and to produce all of the tables, figures maps etc, can be found at [https://github.com/lexcomber/CAS_GW_Training](https://github.com/lexcomber/CAS_GW_Training).
 
 
 # References
